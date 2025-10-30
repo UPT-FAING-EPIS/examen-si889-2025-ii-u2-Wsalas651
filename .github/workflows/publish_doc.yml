@@ -1,0 +1,902 @@
+name: Publicación de Documentación en GitHub Pages
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'docs/**'
+      - 'README.md'
+      - 'database/**'
+      - 'diagrams/**'
+      - '.github/workflows/publish_doc.yml'
+  workflow_dispatch:
+
+name: Publish documentation (.NET)
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - 'AppSettingsLib/**'
+      - 'README.md'
+      - '.github/workflows/publish_doc.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '7.0.x'
+
+      - name: Restore, Build and Test
+        run: |
+          dotnet restore
+          dotnet build -c Release
+          dotnet test -c Release --no-build --verbosity normal
+
+      - name: Install DocFX
+        run: |
+          dotnet tool install -g docfx
+          echo "## Add dotnet tools to PATH"
+          echo "/home/runner/.dotnet/tools" >> $GITHUB_PATH
+
+      - name: Prepare DocFX config and content
+        run: |
+          mkdir -p docs
+          cat > docs/docfx.json << 'EOF'
+{
+  "metadata": [
+    {
+      "src": [
+        {
+          "files": ["../AppSettingsLib/**/*.cs"],
+          "exclude": ["**/bin/**", "**/obj/**"]
+        }
+      ],
+      "dest": "api",
+      "includePrivateMembers": false
+    }
+  ],
+  "build": {
+    "content": [
+      { "files": ["api/**.yml", "api/index.md"] },
+      { "files": ["**/*.md"] }
+    ],
+    "resource": [ { "files": ["images/**"] } ],
+    "output": "_site",
+    "template": [ "default" ],
+    "markdownEngineName": "markdig"
+  }
+}
+EOF
+
+          # Simple index
+          cat > docs/index.md << 'EOF'
+# Documentación de la Aplicación
+
+Generada automáticamente: API Reference + diagrama de clases.
+
+## API
+
+La documentación API se encuentra en la sección `api/`.
+
+## Diagrama de Clases
+
+El diagrama generado se incluye en `images/diagrams/`.
+EOF
+
+      - name: Install PlantUML and Graphviz
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y default-jre graphviz
+          wget -q -O /tmp/plantuml.jar https://github.com/plantuml/plantuml/releases/latest/download/plantuml.jar
+          sudo mv /tmp/plantuml.jar /usr/local/bin/plantuml.jar
+          sudo bash -c 'cat > /usr/local/bin/plantuml <<"BASH"
+#!/bin/bash
+java -jar /usr/local/bin/plantuml.jar "$@"
+BASH'
+          sudo chmod +x /usr/local/bin/plantuml
+
+      - name: Generate simple PlantUML class diagram from AppSettingsLib
+        run: |
+          mkdir -p docs/diagrams docs/images/diagrams
+          echo "@startuml" > docs/diagrams/class_diagram.puml
+          echo "!theme plain" >> docs/diagrams/class_diagram.puml
+
+          # For each .cs file, try to extract class name and public auto-properties
+          shopt -s globstar || true
+          for f in AppSettingsLib/**/*.cs; do
+            if [ -f "$f" ]; then
+              classname=$(grep -Po '(?<=class )\w+' "$f" | head -n1 || true)
+              if [ -n "$classname" ]; then
+                echo "class $classname {" >> docs/diagrams/class_diagram.puml
+                # extract simple public properties like: public string Name { get; set; }
+                grep -Po 'public\s+[^\s]+\s+\w+\s*\{\s*get;\s*set;\s*\}' "$f" | \
+                  sed -E 's/public\s+([^ ]+)\s+([^ ]+)\s*\{.*/  +\2: \1/' >> docs/diagrams/class_diagram.puml || true
+                echo "}" >> docs/diagrams/class_diagram.puml
+              fi
+            fi
+          done
+
+          echo "@enduml" >> docs/diagrams/class_diagram.puml
+
+          # Render if plantuml available
+          if command -v plantuml >/dev/null 2>&1; then
+            plantuml -tsvg docs/diagrams/class_diagram.puml -o docs/images/diagrams || true
+            plantuml -tpng docs/diagrams/class_diagram.puml -o docs/images/diagrams || true
+          fi
+
+      - name: Build documentation with DocFX
+        run: |
+          docfx docs/docfx.json
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload generated site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/_site
+
+  deploy-pages:
+    needs: build-and-docs
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+      contents: write
+    steps:
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
+
+          az cdn profile create \
+            --name upt-ecommerce-cdn \
+            --resource-group upt-arg-900 \
+            --sku Standard_Microsoft
+          ```
+
+          ### 3. Redis Cache (futuro)
+          ```bash
+          az redis create \
+            --name upt-ecommerce-cache \
+            --resource-group upt-arg-900 \
+            --location "Brazil South" \
+            --sku Basic \
+            --vm-size c0
+          ```
+          EOF
+
+      - name: Create development guide
+        run: |
+          cat > docs/articles/development.md << 'EOF'
+          # Guía de Desarrollo
+
+          ## Configuración del Entorno Local
+
+          ### Prerrequisitos
+          - .NET 8 SDK
+          - Node.js 18+
+          - SQL Server LocalDB o Docker
+          - Visual Studio Code o Visual Studio
+          - Git
+
+          ### Clonar y Configurar
+
+          ```bash
+          # Clonar repositorio
+          git clone https://github.com/UPT-FAING-EPIS/examen-2025-ii-pds-u1-SebastianFuentesAvalos.git
+          cd examen-2025-ii-pds-u1-SebastianFuentesAvalos
+
+          # Backend
+          cd backend
+          dotnet restore
+          dotnet ef database update
+
+          # Frontend  
+          cd ../frontend
+          npm install
+          ```
+
+          ## Estructura del Proyecto
+
+          ```
+          ├── backend/                 # API .NET 8
+          │   ├── src/
+          │   │   ├── Controllers/     # API Controllers
+          │   │   ├── Services/        # Business Logic
+          │   │   ├── Models/          # Domain Models
+          │   │   ├── DTOs/            # Data Transfer Objects
+          │   │   └── Data/            # Entity Framework
+          │   └── tests/               # Unit & Integration Tests
+          ├── frontend/                # Vue.js SPA
+          │   ├── src/
+          │   │   ├── components/      # Vue Components
+          │   │   ├── views/           # Page Views
+          │   │   ├── stores/          # Pinia Stores
+          │   │   └── services/        # API Services
+          ├── database/                # SQL Scripts
+          ├── docs/                    # Documentación
+          ├── diagrams/                # Diagramas generados
+          └── infra/                   # Terraform IaC
+          ```
+
+          ## Comandos de Desarrollo
+
+          ### Backend (.NET)
+          ```bash
+          # Ejecutar API en desarrollo
+          dotnet run --project backend/src
+
+          # Ejecutar tests
+          dotnet test backend/tests
+
+          # Crear migración
+          dotnet ef migrations add NombreMigracion --project backend/src
+
+          # Actualizar base de datos
+          dotnet ef database update --project backend/src
+
+          # Build para producción
+          dotnet publish backend/src -c Release -o backend/dist
+          ```
+
+          ### Frontend (Vue.js)
+          ```bash
+          # Servidor de desarrollo
+          npm run dev
+
+          # Build para producción
+          npm run build
+
+          # Preview del build
+          npm run preview
+
+          # Tests unitarios
+          npm run test:unit
+
+          # Tests E2E
+          npm run test:e2e
+
+          # Linting
+          npm run lint
+          ```
+
+          ## Estándares de Código
+
+          ### Backend (C#)
+          - **Naming**: PascalCase para clases y métodos, camelCase para variables
+          - **Async/Await**: Siempre usar para operaciones I/O
+          - **Dependency Injection**: Registrar servicios en Program.cs
+          - **Error Handling**: Global exception handler
+
+          ### Frontend (TypeScript/Vue)
+          - **Naming**: camelCase para variables, PascalCase para componentes
+          - **Composition API**: Usar consistentemente
+          - **TypeScript**: Tipado fuerte en toda la aplicación
+          - **ESLint**: Seguir reglas configuradas
+
+          ## Testing
+
+          ### Backend Tests
+          ```csharp
+          [Test]
+          public async Task GetProducts_ReturnsAllProducts()
+          {
+              // Arrange
+              var products = new List<Product> { /* test data */ };
+              mockRepository.Setup(r => r.GetAllAsync()).ReturnsAsync(products);
+
+              // Act
+              var result = await controller.GetProducts();
+
+              // Assert
+              Assert.That(result.Value, Has.Count.EqualTo(products.Count));
+          }
+          ```
+
+          ### Frontend Tests
+          ```typescript
+          describe('ProductCard', () => {
+            it('renders product information correctly', () => {
+              const product = { id: 1, name: 'Test Product', price: 10.99 };
+              const wrapper = mount(ProductCard, { props: { product } });
+              
+              expect(wrapper.text()).toContain('Test Product');
+              expect(wrapper.text()).toContain('$10.99');
+            });
+          });
+          ```
+
+          ## Git Workflow
+
+          ### Branching Strategy
+          ```bash
+          # Crear feature branch
+          git checkout -b feature/add-product-search
+
+          # Hacer commits descriptivos
+          git commit -m "feat: add product search functionality"
+
+          # Push y crear PR
+          git push origin feature/add-product-search
+          ```
+
+          ### Commit Messages
+          - `feat:` nueva funcionalidad
+          - `fix:` corrección de bug
+          - `docs:` cambios en documentación
+          - `style:` cambios de formato
+          - `refactor:` refactoring de código
+          - `test:` agregando tests
+
+          ## Debugging
+
+          ### Backend
+          ```csharp
+          // Configurar logging detallado
+          builder.Logging.SetMinimumLevel(LogLevel.Debug);
+
+          // Usar breakpoints en desarrollo
+          if (Debugger.IsAttached)
+          {
+              // Debug code
+          }
+          ```
+
+          ### Frontend
+          ```typescript
+          // Vue DevTools
+          app.config.devtools = true;
+
+          // Console debugging
+          console.log('Debug info:', { data });
+
+          // Performance monitoring
+          console.time('API Call');
+          await apiCall();
+          console.timeEnd('API Call');
+          ```
+
+          ## Base de Datos
+
+          ### Migrations
+          ```bash
+          # Crear migración
+          dotnet ef migrations add AddProductCategories
+
+          # Ver SQL generado
+          dotnet ef migrations script
+
+          # Rollback migración
+          dotnet ef database update PreviousMigration
+          ```
+
+          ### Seeding Data
+          ```csharp
+          // En DbContext
+          protected override void OnModelCreating(ModelBuilder modelBuilder)
+          {
+              modelBuilder.Entity<Category>().HasData(
+                  new Category { Id = 1, Name = "Electronics" },
+                  new Category { Id = 2, Name = "Clothing" }
+              );
+          }
+          ```
+
+          ## Performance Tips
+
+          ### Backend
+          - Usar `IAsyncEnumerable` para grandes datasets
+          - Implementar paginación en todas las listas
+          - Configurar Entity Framework para lazy loading
+          - Usar caching para datos frecuentes
+
+          ### Frontend  
+          - Implementar virtual scrolling
+          - Usar `v-memo` para componentes pesados
+          - Lazy load de rutas y componentes
+          - Optimizar imágenes con formatos modernos
+
+          ## Troubleshooting
+
+          ### Problemas Comunes
+
+          1. **CORS Issues**: Configurar CORS en backend
+          2. **Database Connection**: Verificar connection string
+          3. **NPM Issues**: Limpiar node_modules y reinstalar
+          4. **Build Errors**: Verificar versiones de dependencias
+
+          ### Herramientas Útiles
+          - **Postman**: Testing de APIs
+          - **Vue DevTools**: Debugging de Vue
+          - **SQL Server Management Studio**: Gestión de BD
+          - **Azure Storage Explorer**: Gestión de blobs
+          EOF
+
+      - name: Generate Class Diagrams
+        run: |
+          # Crear directorio para diagramas
+          mkdir -p docs/diagrams
+          mkdir -p docs/images/diagrams
+          
+          # Generar diagrama de clases usando análisis de código
+          cat > generate_class_diagram.py << 'EOF'
+          import os
+          import re
+          import glob
+          
+          def extract_classes_from_csharp(directory):
+              classes = []
+              relationships = []
+              
+              # Buscar archivos .cs en el directorio backend
+              cs_files = glob.glob(f"{directory}/**/*.cs", recursive=True)
+              
+              for file_path in cs_files:
+                  if '/bin/' in file_path or '/obj/' in file_path:
+                      continue
+                      
+                  try:
+                      with open(file_path, 'r', encoding='utf-8') as f:
+                          content = f.read()
+                          
+                      # Extraer clases
+                      class_matches = re.findall(r'public\s+(?:abstract\s+)?class\s+(\w+)(?:\s*:\s*([^{]+))?', content)
+                      for class_name, inheritance in class_matches:
+                          class_info = {
+                              'name': class_name,
+                              'file': os.path.basename(file_path),
+                              'properties': [],
+                              'methods': [],
+                              'inheritance': inheritance.strip() if inheritance else None
+                          }
+                          
+                          # Extraer propiedades
+                          prop_matches = re.findall(r'public\s+(\w+(?:<[^>]+>)?)\s+(\w+)\s*{\s*get;?\s*set;?\s*}', content)
+                          class_info['properties'] = [(prop_type, prop_name) for prop_type, prop_name in prop_matches]
+                          
+                          # Extraer métodos públicos
+                          method_matches = re.findall(r'public\s+(?:async\s+)?(?:Task<?[^>]*>?\s+|void\s+|[\w<>]+\s+)(\w+)\s*\([^)]*\)', content)
+                          class_info['methods'] = method_matches
+                          
+                          classes.append(class_info)
+                          
+                          # Extraer relaciones de herencia
+                          if inheritance:
+                              name: Publish documentation (.NET)
+
+                              on:
+                                push:
+                                  branches: ["main"]
+                                  paths:
+                                    - 'AppSettingsLib/**'
+                                    - 'README.md'
+                                    - '.github/workflows/publish_doc.yml'
+                                workflow_dispatch:
+
+                              permissions:
+                                contents: read
+                                pages: write
+                                id-token: write
+
+                              concurrency:
+                                group: pages
+                                cancel-in-progress: false
+
+                              jobs:
+                                build-and-docs:
+                                  runs-on: ubuntu-latest
+                                  steps:
+                                    - name: Checkout repo
+                                      uses: actions/checkout@v4
+
+                                    - name: Setup .NET SDK
+                                      uses: actions/setup-dotnet@v4
+                                      with:
+                                        dotnet-version: '7.0.x'
+
+                                    - name: Restore, Build and Test
+                                      run: |
+                                        dotnet restore
+                                        dotnet build -c Release
+                                        dotnet test -c Release --no-build --verbosity normal
+
+                                    - name: Install DocFX
+                                      run: |
+                                        dotnet tool install -g docfx
+                                        echo "/home/runner/.dotnet/tools" >> $GITHUB_PATH
+
+                                    - name: Prepare DocFX config and content
+                                      env:
+                                        DOCFX_JSON: |
+                                          {
+                                            "metadata": [
+                                              {
+                                                "src": [ { "files": ["../AppSettingsLib/**/*.cs"], "exclude": ["**/bin/**","**/obj/**"] } ],
+                                                "dest": "api",
+                                                "includePrivateMembers": false
+                                              }
+                                            ],
+                                            "build": {
+                                              "content": [ { "files": ["api/**.yml","api/index.md"] }, { "files": ["**/*.md"] } ],
+                                              "resource": [ { "files": ["images/**"] } ],
+                                              "output": "_site",
+                                              "template": [ "default" ],
+                                              "markdownEngineName": "markdig"
+                                            }
+                                          }
+                                        INDEX_MD: |-
+                                          # Documentación de la Aplicación
+
+                                          Generada automáticamente: API Reference + diagrama de clases.
+
+                                          ## API
+
+                                          La documentación API se encuentra en la sección `api/`.
+
+                                          ## Diagrama de Clases
+
+                                          El diagrama generado se incluye en `images/diagrams/`.
+                                      run: |
+                                        mkdir -p docs
+                                        # write docfx.json from env var
+                                        cat > docs/docfx.json <<'DOCFX'
+                              ${DOCFX_JSON}
+                              DOCFX
+
+                                        # write index.md from env var
+                                        cat > docs/index.md <<'INDEX'
+                              ${INDEX_MD}
+                              INDEX
+
+                                    - name: Install PlantUML and Graphviz
+                                      run: |
+                                        sudo apt-get update
+                                        sudo apt-get install -y default-jre graphviz
+                                        wget -q -O /tmp/plantuml.jar https://github.com/plantuml/plantuml/releases/latest/download/plantuml.jar
+                                        sudo mv /tmp/plantuml.jar /usr/local/bin/plantuml.jar
+                                        sudo tee /usr/local/bin/plantuml > /dev/null <<'PLANT'
+                              #!/bin/bash
+                              java -jar /usr/local/bin/plantuml.jar "$@"
+                              PLANT
+                                        sudo chmod +x /usr/local/bin/plantuml
+
+                                    - name: Generate simple PlantUML class diagram from AppSettingsLib
+                                      run: |
+                                        mkdir -p docs/diagrams docs/images/diagrams
+                                        echo "@startuml" > docs/diagrams/class_diagram.puml
+                                        echo "!theme plain" >> docs/diagrams/class_diagram.puml
+
+                                        shopt -s globstar || true
+                                        for f in AppSettingsLib/**/*.cs; do
+                                          if [ -f "$f" ]; then
+                                            classname=$(grep -Po '(?<=class )\w+' "$f" | head -n1 || true)
+                                            if [ -n "$classname" ]; then
+                                              echo "class $classname {" >> docs/diagrams/class_diagram.puml
+                                              grep -Po 'public\s+[^\s]+\s+\w+\s*\{\s*get;\s*set;\s*\}' "$f" | \
+                                                sed -E 's/public\s+([^ ]+)\s+([^ ]+)\s*\{.*/  +\2: \1/' >> docs/diagrams/class_diagram.puml || true
+                                              echo "}" >> docs/diagrams/class_diagram.puml
+                                            fi
+                                          fi
+                                        done
+
+                                        echo "@enduml" >> docs/diagrams/class_diagram.puml
+
+                                        if command -v plantuml >/dev/null 2>&1; then
+                                          plantuml -tsvg docs/diagrams/class_diagram.puml -o docs/images/diagrams || true
+                                          plantuml -tpng docs/diagrams/class_diagram.puml -o docs/images/diagrams || true
+                                        fi
+
+                                    - name: Build documentation with DocFX
+                                      run: |
+                                        docfx docs/docfx.json
+
+                                    - name: Configure Pages
+                                      uses: actions/configure-pages@v4
+
+                                    - name: Upload generated site
+                                      uses: actions/upload-pages-artifact@v3
+                                      with:
+                                        path: docs/_site
+
+                                deploy-pages:
+                                  needs: build-and-docs
+                                  runs-on: ubuntu-latest
+                                  permissions:
+                                    pages: write
+                                    id-token: write
+                                    contents: write
+                                  steps:
+                                    - name: Deploy to GitHub Pages
+                                      uses: actions/deploy-pages@v4
+
+            
+            class CartItem {
+              +Id: int
+              +CartId: int
+              +ProductId: int
+              +Quantity: int
+              --
+              +UpdateQuantity(): void
+            }
+          }
+          
+          package "Services" {
+            class ProductService {
+              -repository: IProductRepository
+              -mapper: IMapper
+              --
+              +GetAllAsync(): Task<List<ProductDto>>
+              +GetByIdAsync(): Task<ProductDto>
+              +CreateAsync(): Task<ProductDto>
+              +UpdateAsync(): Task<void>
+              +DeleteAsync(): Task<void>
+            }
+            
+            class OrderService {
+              -orderRepository: IOrderRepository
+              -cartService: ICartService
+              --
+              +CreateOrderAsync(): Task<OrderDto>
+              +GetUserOrdersAsync(): Task<List<OrderDto>>
+              +UpdateOrderStatusAsync(): Task<void>
+            }
+            
+            class CartService {
+              -cartRepository: ICartRepository
+              -productService: IProductService
+              --
+              +GetCartAsync(): Task<CartDto>
+              +AddItemAsync(): Task<void>
+              +UpdateItemAsync(): Task<void>
+              +RemoveItemAsync(): Task<void>
+            }
+          }
+          
+          package "Controllers" {
+            class ProductsController {
+              -productService: IProductService
+              --
+              +GetProducts(): ActionResult<List<ProductDto>>
+              +GetProduct(): ActionResult<ProductDto>
+              +CreateProduct(): ActionResult<ProductDto>
+              +UpdateProduct(): ActionResult
+              +DeleteProduct(): ActionResult
+            }
+            
+            class OrdersController {
+              -orderService: IOrderService
+              --
+              +CreateOrder(): ActionResult<OrderDto>
+              +GetOrders(): ActionResult<List<OrderDto>>
+              +GetOrder(): ActionResult<OrderDto>
+            }
+          }
+          
+          ' Relationships
+          User ||--o{ Order : "places"
+          User ||--|| Cart : "has"
+          Order ||--o{ OrderItem : "contains"
+          Cart ||--o{ CartItem : "contains"
+          Product ||--o{ OrderItem : "included in"
+          Product ||--o{ CartItem : "added to"
+          Category ||--o{ Product : "categorizes"
+          
+          ProductService --> Product : "manages"
+          OrderService --> Order : "manages"
+          CartService --> Cart : "manages"
+          
+          ProductsController --> ProductService : "uses"
+          OrdersController --> OrderService : "uses"
+          
+          @enduml
+          EOF
+          fi
+          
+          # Generar diagrama Mermaid de ejemplo si no existe
+          if [ ! -f "docs/diagrams/class_diagram.mmd" ]; then
+            cat > docs/diagrams/class_diagram.mmd << 'EOF'
+          classDiagram
+            class User {
+              +int Id
+              +string Name
+              +string Email
+              +DateTime CreatedAt
+              +ValidatePassword() bool
+              +UpdateProfile() void
+            }
+            
+            class Product {
+              +int Id
+              +string Name
+              +decimal Price
+              +int Stock
+              +int CategoryId
+              +UpdateStock() void
+              +IsAvailable() bool
+            }
+            
+            class Category {
+              +int Id
+              +string Name
+              +bool IsActive
+              +GetProducts() List~Product~
+            }
+            
+            class Order {
+              +int Id
+              +int UserId
+              +decimal Total
+              +OrderStatus Status
+              +CalculateTotal() decimal
+              +UpdateStatus() void
+            }
+            
+            class OrderItem {
+              +int Id
+              +int OrderId
+              +int ProductId
+              +int Quantity
+              +GetSubtotal() decimal
+            }
+            
+            class Cart {
+              +int Id
+              +int UserId
+              +AddItem() void
+              +RemoveItem() void
+            }
+            
+            class CartItem {
+              +int Id
+              +int CartId
+              +int ProductId
+              +int Quantity
+            }
+            
+            User ||--o{ Order : places
+            User ||--|| Cart : has
+            Order ||--o{ OrderItem : contains
+            Cart ||--o{ CartItem : contains
+            Product ||--o{ OrderItem : "included in"
+            Product ||--o{ CartItem : "added to"
+            Category ||--o{ Product : categorizes
+          EOF
+          fi
+          
+          # Convertir PlantUML a PNG
+          if command -v plantuml &> /dev/null && [ -f "docs/diagrams/class_diagram.puml" ]; then
+            plantuml -tpng docs/diagrams/class_diagram.puml -o ../images/diagrams/
+            echo "✅ Diagrama PlantUML generado como PNG"
+          fi
+          
+          # Convertir Mermaid a PNG
+          if command -v mmdc &> /dev/null && [ -f "docs/diagrams/class_diagram.mmd" ]; then
+            mmdc -i docs/diagrams/class_diagram.mmd -o docs/images/diagrams/class_diagram_mermaid.png -t neutral -b white
+            echo "✅ Diagrama Mermaid generado como PNG"
+          fi
+          
+          # Generar SVG también (más ligero)
+          if command -v plantuml &> /dev/null && [ -f "docs/diagrams/class_diagram.puml" ]; then
+            plantuml -tsvg docs/diagrams/class_diagram.puml -o ../images/diagrams/
+            echo "✅ Diagrama PlantUML generado como SVG"
+          fi
+
+      - name: Generate API documentation
+        run: |
+          # Crear documentación de API estática
+          mkdir -p docs/api
+          cat > docs/api/index.md << 'EOF'
+          # API Reference
+
+          La documentación de la API se generará automáticamente cuando el código fuente esté disponible.
+
+          ## Endpoints Principales
+
+          ### Products API
+          - `GET /api/products` - Obtener todos los productos
+          - `GET /api/products/{id}` - Obtener producto por ID
+          - `POST /api/products` - Crear nuevo producto
+          - `PUT /api/products/{id}` - Actualizar producto
+          - `DELETE /api/products/{id}` - Eliminar producto
+
+          ### Users API
+          - `POST /api/auth/register` - Registrar usuario
+          - `POST /api/auth/login` - Iniciar sesión
+          - `GET /api/users/profile` - Obtener perfil
+
+          ### Cart API
+          - `GET /api/cart` - Obtener carrito actual
+          - `POST /api/cart/items` - Agregar item al carrito
+          - `PUT /api/cart/items/{id}` - Actualizar cantidad
+          - `DELETE /api/cart/items/{id}` - Eliminar item
+
+          ### Orders API
+          - `POST /api/orders` - Crear pedido
+          - `GET /api/orders` - Obtener pedidos del usuario
+          - `GET /api/orders/{id}` - Obtener pedido específico
+
+          La documentación completa con esquemas y ejemplos se generará automáticamente con el código fuente.
+          EOF
+
+      - name: Build documentation with DocFX
+        run: |
+          cd docs
+          docfx build docfx.json
+
+      - name: Setup Pages (Optional)
+        uses: actions/configure-pages@v4
+        with:
+          enablement: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Upload Documentation as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-site
+          path: docs/_site
+          retention-days: 30
+
+      - name: Upload to GitHub Pages (if enabled)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/_site
+        continue-on-error: true
+
+  Deploy-Documentation:
+    needs: Generate-Documentation
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+      contents: write
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+      - name: Deployment Status
+        run: |
+          if [ "${{ steps.deployment.outcome }}" == "success" ]; then
+            echo "✅ Documentación desplegada en GitHub Pages"
+            echo "🌐 URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+          else
+            echo "⚠️  GitHub Pages no está disponible en este repositorio"
+            echo "📦 La documentación está disponible como artefacto descargable"
+            echo "💡 Ve a la pestaña Actions → este workflow → 'documentation-site' para descargar"
+          fi
+
+      - name: Publish documentation summary
+        run: |
+            echo "## 📚 Documentation Generated Successfully" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Generated Documentation Includes:" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **API Reference** - Auto-generated from source code" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **Class Diagrams** - Auto-generated UML diagrams (PlantUML & Mermaid)" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **Architecture Guide** - System design and patterns" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **Database Documentation** - Schema and procedures" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **Frontend Guide** - Vue.js components and structure" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **Deployment Guide** - Azure configuration steps" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **Development Guide** - Local setup and workflows" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "� **Download**: Ve a la pestaña Actions y descarga el artefacto 'documentation-site'" >> $GITHUB_STEP_SUMMARY
+            echo "🌐 **Local Preview**: Descomprime el archivo y abre index.html en tu navegador" >> $GITHUB_STEP_SUMMARY

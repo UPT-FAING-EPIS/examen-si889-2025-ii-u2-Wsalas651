@@ -1,0 +1,12 @@
+C:\Users\HP\3D Objects\examen-si889-2025-ii-u2-Wsalas651\AppSettingsLib\bin\Debug\net7.0\AppSettingsLib.deps.json
+C:\Users\HP\3D Objects\examen-si889-2025-ii-u2-Wsalas651\AppSettingsLib\bin\Debug\net7.0\AppSettingsLib.dll
+C:\Users\HP\3D Objects\examen-si889-2025-ii-u2-Wsalas651\AppSettingsLib\bin\Debug\net7.0\AppSettingsLib.pdb
+C:\Users\HP\3D Objects\examen-si889-2025-ii-u2-Wsalas651\AppSettingsLib\obj\Debug\net7.0\AppSettingsLib.csproj.AssemblyReference.cache
+C:\Users\HP\3D Objects\examen-si889-2025-ii-u2-Wsalas651\AppSettingsLib\obj\Debug\net7.0\AppSettingsLib.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\HP\3D Objects\examen-si889-2025-ii-u2-Wsalas651\AppSettingsLib\obj\Debug\net7.0\AppSettingsLib.AssemblyInfoInputs.cache
+C:\Users\HP\3D Objects\examen-si889-2025-ii-u2-Wsalas651\AppSettingsLib\obj\Debug\net7.0\AppSettingsLib.AssemblyInfo.cs
+C:\Users\HP\3D Objects\examen-si889-2025-ii-u2-Wsalas651\AppSettingsLib\obj\Debug\net7.0\AppSettingsLib.csproj.CoreCompileInputs.cache
+C:\Users\HP\3D Objects\examen-si889-2025-ii-u2-Wsalas651\AppSettingsLib\obj\Debug\net7.0\AppSettingsLib.dll
+C:\Users\HP\3D Objects\examen-si889-2025-ii-u2-Wsalas651\AppSettingsLib\obj\Debug\net7.0\refint\AppSettingsLib.dll
+C:\Users\HP\3D Objects\examen-si889-2025-ii-u2-Wsalas651\AppSettingsLib\obj\Debug\net7.0\AppSettingsLib.pdb
+C:\Users\HP\3D Objects\examen-si889-2025-ii-u2-Wsalas651\AppSettingsLib\obj\Debug\net7.0\ref\AppSettingsLib.dll

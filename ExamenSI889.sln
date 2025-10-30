@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AppSettingsLib", "AppSettingsLib\AppSettingsLib.csproj", "{98FE888D-AA10-4E96-A98E-62D10D5EABC5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AppSettingsLib.Tests", "AppSettingsLib.Tests\AppSettingsLib.Tests.csproj", "{4DAB8B0A-2217-4412-9AB4-B88F436BCBE1}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{98FE888D-AA10-4E96-A98E-62D10D5EABC5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{98FE888D-AA10-4E96-A98E-62D10D5EABC5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{98FE888D-AA10-4E96-A98E-62D10D5EABC5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{98FE888D-AA10-4E96-A98E-62D10D5EABC5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4DAB8B0A-2217-4412-9AB4-B88F436BCBE1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4DAB8B0A-2217-4412-9AB4-B88F436BCBE1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4DAB8B0A-2217-4412-9AB4-B88F436BCBE1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4DAB8B0A-2217-4412-9AB4-B88F436BCBE1}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
