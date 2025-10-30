@@ -6,7 +6,7 @@ on:
     paths:
       - 'AppSettingsLib/**'
       - 'README.md'
-      - '.github/workflows/publish_doc_clean.yml'
+      - '.github/workflows/publish_doc.yml'
   workflow_dispatch:
 
 permissions:
@@ -41,60 +41,16 @@ jobs:
           dotnet tool install -g docfx
           echo "/home/runner/.dotnet/tools" >> $GITHUB_PATH
 
-      - name: Prepare DocFX config and content
-        env:
-          DOCFX_JSON: |
-            {
-              "metadata": [
-                {
-                  "src": [ { "files": ["../AppSettingsLib/**/*.cs"], "exclude": ["**/bin/**","**/obj/**"] } ],
-                  "dest": "api",
-                  "includePrivateMembers": false
-                }
-              ],
-              "build": {
-                "content": [ { "files": ["api/**.yml","api/index.md"] }, { "files": ["**/*.md"] } ],
-                "resource": [ { "files": ["images/**"] } ],
-                "output": "_site",
-                "template": [ "default" ],
-                "markdownEngineName": "markdig"
-              }
-            }
-          INDEX_MD: |-
-            # Documentación de la Aplicación
-
-            Generada automáticamente: API Reference + diagrama de clases.
-
-            ## API
-
-            La documentación API se encuentra en la sección `api/`.
-
-            ## Diagrama de Clases
-
-            El diagrama generado se incluye en `images/diagrams/`.
+      - name: Ensure docs folder
         run: |
-          mkdir -p docs
-          # write docfx.json from env var
-          cat > docs/docfx.json <<'DOCFX'
-${DOCFX_JSON}
-DOCFX
-
-          # write index.md from env var
-          cat > docs/index.md <<'INDEX'
-${INDEX_MD}
-INDEX
+          mkdir -p docs images/diagrams
 
       - name: Install PlantUML and Graphviz
         run: |
           sudo apt-get update
           sudo apt-get install -y default-jre graphviz
-          wget -q -O /tmp/plantuml.jar https://github.com/plantuml/plantuml/releases/latest/download/plantuml.jar
-          sudo mv /tmp/plantuml.jar /usr/local/bin/plantuml.jar
-          sudo tee /usr/local/bin/plantuml > /dev/null <<'PLANT'
-#!/bin/bash
-java -jar /usr/local/bin/plantuml.jar "$@"
-PLANT
-          sudo chmod +x /usr/local/bin/plantuml
+          wget -q -O /usr/local/bin/plantuml.jar https://github.com/plantuml/plantuml/releases/latest/download/plantuml.jar
+          sudo chmod +x /usr/local/bin/plantuml.jar
 
       - name: Generate simple PlantUML class diagram from AppSettingsLib
         run: |
@@ -117,9 +73,9 @@ PLANT
 
           echo "@enduml" >> docs/diagrams/class_diagram.puml
 
-          if command -v plantuml >/dev/null 2>&1; then
-            plantuml -tsvg docs/diagrams/class_diagram.puml -o docs/images/diagrams || true
-            plantuml -tpng docs/diagrams/class_diagram.puml -o docs/images/diagrams || true
+          if [ -f /usr/local/bin/plantuml.jar ]; then
+            java -jar /usr/local/bin/plantuml.jar -tsvg docs/diagrams/class_diagram.puml -o docs/images/diagrams || true
+            java -jar /usr/local/bin/plantuml.jar -tpng docs/diagrams/class_diagram.puml -o docs/images/diagrams || true
           fi
 
       - name: Build documentation with DocFX

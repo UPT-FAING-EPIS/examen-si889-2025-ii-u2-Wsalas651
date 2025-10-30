@@ -1,0 +1,16 @@
+{
+  "metadata": [
+    {
+      "src": [ { "files": ["../AppSettingsLib/**/*.cs"], "exclude": ["**/bin/**","**/obj/**"] } ],
+      "dest": "api",
+      "includePrivateMembers": false
+    }
+  ],
+  "build": {
+    "content": [ { "files": ["api/**.yml","api/index.md"] }, { "files": ["**/*.md"] } ],
+    "resource": [ { "files": ["images/**"] } ],
+    "output": "_site",
+    "template": [ "default" ],
+    "markdownEngineName": "markdig"
+  }
+}
