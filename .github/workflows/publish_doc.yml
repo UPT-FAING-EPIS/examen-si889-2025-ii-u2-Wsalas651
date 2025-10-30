@@ -84,6 +84,11 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v4
+        with:
+          # Nota: GITHUB_TOKEN puede no tener permiso para crear/configurar el sitio Pages
+          # en algunos repositorios/organizaciones. Cree un PAT con permisos adecuados
+          # y guárdelo en Settings -> Secrets como `PAGES_PAT`. Luego use ese secreto aquí.
+          token: ${{ secrets.PAGES_PAT }}
 
       - name: Upload generated site
         uses: actions/upload-pages-artifact@v3

@@ -69,7 +69,10 @@ jobs:
         uses: actions/configure-pages@v4
         with:
           enablement: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # Nota: GITHUB_TOKEN puede no tener permiso para crear/configurar el sitio Pages
+          # en algunos repositorios/organizaciones. Cree un PAT con permisos adecuados
+          # y guárdelo en Settings -> Secrets como `PAGES_PAT`. Luego use ese secreto aquí.
+          token: ${{ secrets.PAGES_PAT }}
 
       - name: Subir sitio de cobertura a Pages
         uses: actions/upload-pages-artifact@v3
