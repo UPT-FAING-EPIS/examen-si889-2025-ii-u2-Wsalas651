@@ -1,0 +1,146 @@
+name: Publish documentation (.NET)
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - 'AppSettingsLib/**'
+      - 'README.md'
+      - '.github/workflows/publish_doc_clean.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '7.0.x'
+
+      - name: Restore, Build and Test
+        run: |
+          dotnet restore
+          dotnet build -c Release
+          dotnet test -c Release --no-build --verbosity normal
+
+      - name: Install DocFX
+        run: |
+          dotnet tool install -g docfx
+          echo "/home/runner/.dotnet/tools" >> $GITHUB_PATH
+
+      - name: Prepare DocFX config and content
+        env:
+          DOCFX_JSON: |
+            {
+              "metadata": [
+                {
+                  "src": [ { "files": ["../AppSettingsLib/**/*.cs"], "exclude": ["**/bin/**","**/obj/**"] } ],
+                  "dest": "api",
+                  "includePrivateMembers": false
+                }
+              ],
+              "build": {
+                "content": [ { "files": ["api/**.yml","api/index.md"] }, { "files": ["**/*.md"] } ],
+                "resource": [ { "files": ["images/**"] } ],
+                "output": "_site",
+                "template": [ "default" ],
+                "markdownEngineName": "markdig"
+              }
+            }
+          INDEX_MD: |-
+            # Documentación de la Aplicación
+
+            Generada automáticamente: API Reference + diagrama de clases.
+
+            ## API
+
+            La documentación API se encuentra en la sección `api/`.
+
+            ## Diagrama de Clases
+
+            El diagrama generado se incluye en `images/diagrams/`.
+        run: |
+          mkdir -p docs
+          # write docfx.json from env var
+          cat > docs/docfx.json <<'DOCFX'
+${DOCFX_JSON}
+DOCFX
+
+          # write index.md from env var
+          cat > docs/index.md <<'INDEX'
+${INDEX_MD}
+INDEX
+
+      - name: Install PlantUML and Graphviz
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y default-jre graphviz
+          wget -q -O /tmp/plantuml.jar https://github.com/plantuml/plantuml/releases/latest/download/plantuml.jar
+          sudo mv /tmp/plantuml.jar /usr/local/bin/plantuml.jar
+          sudo tee /usr/local/bin/plantuml > /dev/null <<'PLANT'
+#!/bin/bash
+java -jar /usr/local/bin/plantuml.jar "$@"
+PLANT
+          sudo chmod +x /usr/local/bin/plantuml
+
+      - name: Generate simple PlantUML class diagram from AppSettingsLib
+        run: |
+          mkdir -p docs/diagrams docs/images/diagrams
+          echo "@startuml" > docs/diagrams/class_diagram.puml
+          echo "!theme plain" >> docs/diagrams/class_diagram.puml
+
+          shopt -s globstar || true
+          for f in AppSettingsLib/**/*.cs; do
+            if [ -f "$f" ]; then
+              classname=$(grep -Po '(?<=class )\w+' "$f" | head -n1 || true)
+              if [ -n "$classname" ]; then
+                echo "class $classname {" >> docs/diagrams/class_diagram.puml
+                grep -Po 'public\s+[^\s]+\s+\w+\s*\{\s*get;\s*set;\s*\}' "$f" | \
+                  sed -E 's/public\s+([^ ]+)\s+([^ ]+)\s*\{.*/  +\2: \1/' >> docs/diagrams/class_diagram.puml || true
+                echo "}" >> docs/diagrams/class_diagram.puml
+              fi
+            fi
+          done
+
+          echo "@enduml" >> docs/diagrams/class_diagram.puml
+
+          if command -v plantuml >/dev/null 2>&1; then
+            plantuml -tsvg docs/diagrams/class_diagram.puml -o docs/images/diagrams || true
+            plantuml -tpng docs/diagrams/class_diagram.puml -o docs/images/diagrams || true
+          fi
+
+      - name: Build documentation with DocFX
+        run: |
+          docfx docs/docfx.json
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload generated site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/_site
+
+  deploy-pages:
+    needs: build-and-docs
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+      contents: write
+    steps:
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
